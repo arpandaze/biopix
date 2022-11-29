@@ -1,0 +1,5 @@
+/target
+.DS_Store
+dump.rdb
+appendonly.aof
+/appendonlydir
