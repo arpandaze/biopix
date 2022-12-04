@@ -31,16 +31,6 @@ unsafe fn drawer2(renderer: &mut opengl::Renderer) {
     renderer.gl.GenBuffers(1, &mut renderer.vbo);
     renderer.gl.BindBuffer(gl::ARRAY_BUFFER, renderer.vbo);
 
-    #[rustfmt::skip]
-    // let vertex_data: Vec<f32> = vec![
-    //     -0.5, -0.5, 1.0, 1.0, 0.0, 0.0,
-    //     0.5, -0.5, 1.0, 0.0, 1.0, 0.0,
-    //     -0.5, 0.5, 1.0, 0.0, 0.0, 1.0,
-    //     0.5, 0.5, 1.0, 1.0, 0.0, 0.0,
-    // ];
-    //
-    // let vertex_indices: Vec<u32> = vec![0, 1, 2, 3, 1, 2];
-
     let vertex_data: Vec<f32> = model::MODEL_VERTICES.into();
     let vertex_indices: Vec<u32> = model::MODEL_INDICES.into();
 
@@ -62,14 +52,11 @@ unsafe fn drawer2(renderer: &mut opengl::Renderer) {
         gl::STATIC_DRAW,
     );
 
+    // POSITION Attribute
     let pos_attrib = renderer.gl.GetAttribLocation(
         renderer.program.unwrap(),
         b"position\0".as_ptr() as *const _,
     );
-
-    let color_attrib = renderer
-        .gl
-        .GetAttribLocation(renderer.program.unwrap(), b"color\0".as_ptr() as *const _);
 
     renderer.gl.VertexAttribPointer(
         pos_attrib as gl::types::GLuint,
@@ -80,13 +67,36 @@ unsafe fn drawer2(renderer: &mut opengl::Renderer) {
         std::ptr::null(),
     );
 
+
+    // COLOR Attribute
+    let color_attrib = renderer
+        .gl
+        .GetAttribLocation(renderer.program.unwrap(), b"color\0".as_ptr() as *const _);
+
     renderer.gl.VertexAttribPointer(
         color_attrib as gl::types::GLuint,
         3,
         gl::FLOAT,
         0,
         6 * std::mem::size_of::<f32>() as gl::types::GLsizei,
-        (3 * std::mem::size_of::<f32>()) as *const () as *const _,
+        (3 * std::mem::size_of::<f32>()) as *const _,
+    );
+
+    // Scale Attribute
+    let scale_attrib = renderer
+        .gl
+        .GetAttribLocation(renderer.program.unwrap(), b"scale\0".as_ptr() as *const _);
+
+    //////////// WORKING ON THIS 
+    renderer.gl.GetUniformLocation(renderer.program.unwrap(), b"scale\0" as *const _);
+
+    renderer.gl.VertexAttribPointer(
+        scale_attrib as gl::types::GLuint,
+        3,
+        gl::FLOAT,
+        0,
+        6 * std::mem::size_of::<f32>() as gl::types::GLsizei,
+        (3 * std::mem::size_of::<f32>()) as *const _,
     );
 
     renderer
@@ -197,21 +207,24 @@ unsafe fn drawer(renderer: &mut opengl::Renderer) -> () {
 }
 
 const VERTEX_SHADER_SOURCE: &[u8] = b"
-#version 100
+#version 330
 precision mediump float;
 attribute vec3 position;
 attribute vec3 color;
+attribute float scale;
 varying vec3 v_color;
+
 void main() {
-    gl_Position = vec4(0.2 * position, 1.0);
+    gl_Position = vec4(scale * position, 1.0);
     v_color = color;
 }
 \0";
 
 const FRAGMENT_SHADER_SOURCE: &[u8] = b"
-#version 100
+#version 330
 precision mediump float;
 varying vec3 v_color;
+
 void main() {
     gl_FragColor = vec4(v_color, 1.0);
 }
@@ -220,18 +233,28 @@ void main() {
 pub fn main() {
     // let input = BufReader::new(File::open("teapot.obj").unwrap());
     // let model: Obj = load_obj(input).unwrap();
-
+    //
     // let vertices = model
     //     .vertices
     //     .iter()
     //     .flat_map(|item| {
     //         let pos = item.position;
-    //
+    // 
     //         return [pos[0], pos[1], pos[2], 1.0, 1.0, 0.0];
     //     })
     //     .collect::<Vec<f32>>();
-
-    // println!("{:?}", model);
+    //
+    // let normals = model
+    //     .vertices
+    //     .iter()
+    //     .flat_map(|item| {
+    //         let pos = item.normal;
+    // 
+    //         return [pos[0], pos[1], pos[2], 1.0, 1.0, 0.0];
+    //     })
+    //     .collect::<Vec<f32>>();
+    //
+    // println!("{:?}", normals);
     // let indices = model.indices;
 
     opengl::init(Some(drawer2));

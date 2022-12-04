@@ -128,6 +128,21 @@ pub fn init(draw_function: Option<unsafe fn(&mut Renderer) -> ()>) {
                 WindowEvent::CloseRequested => {
                     control_flow.set_exit();
                 }
+                WindowEvent::MouseWheel {
+                    device_id: _,
+                    delta,
+                    phase: _,
+                    modifiers: _,
+                } => match delta {
+                    winit::event::MouseScrollDelta::LineDelta(_, dirn) => {
+                        if dirn < 0.0 {
+                            println!("{:?}", "Down");
+                        } else {
+                            println!("{:?}", "Up");
+                        }
+                    }
+                    _ => {}
+                },
                 _ => (),
             },
             Event::RedrawEventsCleared => {
