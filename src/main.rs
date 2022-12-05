@@ -67,7 +67,6 @@ unsafe fn drawer2(renderer: &mut opengl::Renderer) {
         std::ptr::null(),
     );
 
-
     // COLOR Attribute
     let color_attrib = renderer
         .gl
@@ -85,18 +84,19 @@ unsafe fn drawer2(renderer: &mut opengl::Renderer) {
     // Scale Attribute
     let scale_attrib = renderer
         .gl
-        .GetAttribLocation(renderer.program.unwrap(), b"scale\0".as_ptr() as *const _);
+        .GetUniformLocation(renderer.program.unwrap(), b"scale\0".as_ptr() as *const _);
+    renderer.gl.Uniform1f(scale_attrib, renderer.scale);
 
-    //////////// WORKING ON THIS 
-    renderer.gl.GetUniformLocation(renderer.program.unwrap(), b"scale\0" as *const _);
-
-    renderer.gl.VertexAttribPointer(
-        scale_attrib as gl::types::GLuint,
-        3,
-        gl::FLOAT,
-        0,
-        6 * std::mem::size_of::<f32>() as gl::types::GLsizei,
-        (3 * std::mem::size_of::<f32>()) as *const _,
+    // Rotation Attribute
+    let rotation_attrib = renderer.gl.GetUniformLocation(
+        renderer.program.unwrap(),
+        b"rotation\0".as_ptr() as *const _,
+    );
+    renderer.gl.UniformMatrix4fv(
+        rotation_attrib,
+        1,
+        gl::FALSE,
+        renderer.rotation.as_ptr() as *const _,
     );
 
     renderer
@@ -111,7 +111,12 @@ unsafe fn drawer2(renderer: &mut opengl::Renderer) {
     renderer.gl.Clear(gl::COLOR_BUFFER_BIT);
     // renderer.gl.DrawArrays(gl::TRIANGLES, 0, 6);
     renderer.gl.BindBuffer(gl::ELEMENT_ARRAY_BUFFER, indices);
-    renderer.gl.DrawElements(gl::TRIANGLES, vertex_indices.len() as i32, gl::UNSIGNED_INT, 0 as *const _);
+    renderer.gl.DrawElements(
+        gl::TRIANGLES,
+        vertex_indices.len() as i32,
+        gl::UNSIGNED_INT,
+        0 as *const _,
+    );
 }
 
 unsafe fn drawer(renderer: &mut opengl::Renderer) -> () {
@@ -211,11 +216,12 @@ const VERTEX_SHADER_SOURCE: &[u8] = b"
 precision mediump float;
 attribute vec3 position;
 attribute vec3 color;
-attribute float scale;
+uniform float scale;
+uniform mat4 rotation;
 varying vec3 v_color;
 
 void main() {
-    gl_Position = vec4(scale * position, 1.0);
+    gl_Position = (rotation * vec4(position, 1.0));
     v_color = color;
 }
 \0";
@@ -239,7 +245,7 @@ pub fn main() {
     //     .iter()
     //     .flat_map(|item| {
     //         let pos = item.position;
-    // 
+    //
     //         return [pos[0], pos[1], pos[2], 1.0, 1.0, 0.0];
     //     })
     //     .collect::<Vec<f32>>();
@@ -249,7 +255,7 @@ pub fn main() {
     //     .iter()
     //     .flat_map(|item| {
     //         let pos = item.normal;
-    // 
+    //
     //         return [pos[0], pos[1], pos[2], 1.0, 1.0, 0.0];
     //     })
     //     .collect::<Vec<f32>>();

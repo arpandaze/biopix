@@ -75,6 +75,7 @@ pub fn init(draw_function: Option<unsafe fn(&mut Renderer) -> ()>) {
 
     let mut state = None;
     let mut renderer = None;
+    let mut mouse_hold = false;
 
     event_loop.run(move |event, window_target, control_flow| {
         control_flow.set_wait();
@@ -128,21 +129,30 @@ pub fn init(draw_function: Option<unsafe fn(&mut Renderer) -> ()>) {
                 WindowEvent::CloseRequested => {
                     control_flow.set_exit();
                 }
-                WindowEvent::MouseWheel {
-                    device_id: _,
-                    delta,
-                    phase: _,
-                    modifiers: _,
-                } => match delta {
+                WindowEvent::MouseWheel { delta, .. } => match delta {
                     winit::event::MouseScrollDelta::LineDelta(_, dirn) => {
                         if dirn < 0.0 {
-                            println!("{:?}", "Down");
+                            let current_scale = renderer.as_ref().unwrap().scale;
+                            renderer.as_mut().unwrap().scale = current_scale - 0.01;
                         } else {
-                            println!("{:?}", "Up");
+                            let current_scale = renderer.as_ref().unwrap().scale;
+                            renderer.as_mut().unwrap().scale = current_scale + 0.01;
                         }
                     }
                     _ => {}
                 },
+                WindowEvent::CursorMoved { position, .. } => {
+                    if mouse_hold {
+                        println!("{:?}", position);
+                    }
+                }
+
+                WindowEvent::MouseInput { state, .. } => {
+                    mouse_hold = match state {
+                        winit::event::ElementState::Pressed => true,
+                        winit::event::ElementState::Released => false,
+                    }
+                }
                 _ => (),
             },
             Event::RedrawEventsCleared => {
@@ -191,6 +201,8 @@ pub struct Renderer {
     pub program: Option<gl::types::GLuint>,
     pub gl: gl::Gl,
     pub draw_function: Option<unsafe fn(&mut Renderer) -> ()>,
+    pub scale: f32,
+    pub rotation: [[f32; 4]; 4],
 }
 
 impl Renderer {
@@ -223,10 +235,18 @@ impl Renderer {
             Self {
                 vao: std::mem::zeroed(),
                 vbo: std::mem::zeroed(),
-                // program,
                 program: None,
                 gl,
                 draw_function,
+                scale: 1.0,
+
+                #[rustfmt::skip]
+                rotation: [
+                    [0.1, 0.0, 0.0, 0.0],
+                    [0.0, 0.0, -0.1, 0.0],
+                    [0.0, 0.1, 0.0, 0.0],
+                    [0.0, 0.0, 0.0, 1.0],
+                ],
             }
         }
     }
@@ -240,6 +260,12 @@ impl Renderer {
     }
 
     pub fn resize(&self, width: i32, height: i32) {
+        unsafe {
+            self.gl.Viewport(0, 0, width, height);
+        }
+    }
+
+    pub fn scale(&self, width: i32, height: i32) {
         unsafe {
             self.gl.Viewport(0, 0, width, height);
         }
