@@ -23,7 +23,7 @@ pub mod gl {
     // pub use Gles2 as Gl;
 }
 
-pub fn init(draw_function: Option<unsafe fn(&mut Renderer) -> ()>) {
+pub fn init(draw_function: unsafe fn(&mut Renderer) -> (), model: Option<crate::Model>) {
     let event_loop = EventLoopBuilder::new().build();
 
     let window_builder = Some(
@@ -77,6 +77,12 @@ pub fn init(draw_function: Option<unsafe fn(&mut Renderer) -> ()>) {
     let mut renderer = None;
     let mut mouse_hold = false;
 
+    let mut prev_x = 0.0;
+    let mut prev_y = 0.0;
+
+    let mut x_diff = 0.0;
+    let mut y_diff = 0.0;
+
     event_loop.run(move |event, window_target, control_flow| {
         control_flow.set_wait();
         match event {
@@ -95,7 +101,7 @@ pub fn init(draw_function: Option<unsafe fn(&mut Renderer) -> ()>) {
                     .make_current(&gl_window.surface)
                     .unwrap();
 
-                renderer.get_or_insert_with(|| Renderer::new(&gl_display, draw_function));
+                renderer.get_or_insert_with(|| Renderer::new(&gl_display, draw_function, model.clone()));
 
                 if let Err(res) = gl_window
                     .surface
@@ -143,8 +149,16 @@ pub fn init(draw_function: Option<unsafe fn(&mut Renderer) -> ()>) {
                 },
                 WindowEvent::CursorMoved { position, .. } => {
                     if mouse_hold {
-                        println!("{:?}", position);
+                        x_diff += prev_x - position.x;
+
+                        renderer.as_mut().unwrap().x_rotate = Some(x_diff as f32 / 50.0);
+
+                        y_diff += prev_y - position.y;
+
+                        renderer.as_mut().unwrap().y_rotate = Some(y_diff as f32 / 50.0);
                     }
+                    prev_x = position.x;
+                    prev_y = position.y;
                 }
 
                 WindowEvent::MouseInput { state, .. } => {
@@ -200,15 +214,19 @@ pub struct Renderer {
     pub vbo: gl::types::GLuint,
     pub program: Option<gl::types::GLuint>,
     pub gl: gl::Gl,
-    pub draw_function: Option<unsafe fn(&mut Renderer) -> ()>,
+    pub draw_function: unsafe fn(&mut Renderer) -> (),
     pub scale: f32,
-    pub rotation: [[f32; 4]; 4],
+    // pub rotation: [[f32; 4]; 4],
+    pub x_rotate: Option<f32>,
+    pub y_rotate: Option<f32>,
+    pub model: Option<crate::Model>,
 }
 
 impl Renderer {
     pub fn new<D: GlDisplay>(
         gl_display: &D,
-        draw_function: Option<unsafe fn(&mut Renderer) -> ()>,
+        draw_function: unsafe fn(&mut Renderer) -> (),
+        model: Option<crate::Model>,
     ) -> Self {
         unsafe {
             let gl = gl::Gl::load_with(|symbol| {
@@ -227,35 +245,23 @@ impl Renderer {
                 println!("Shaders version on {}", shaders_version.to_string_lossy());
             }
 
-            // let program = gl.CreateProgram();
-            //
-            // gl.LinkProgram(program);
-            // gl.UseProgram(program);
-
             Self {
                 vao: std::mem::zeroed(),
                 vbo: std::mem::zeroed(),
                 program: None,
                 gl,
                 draw_function,
-                scale: 1.0,
-
-                #[rustfmt::skip]
-                rotation: [
-                    [0.1, 0.0, 0.0, 0.0],
-                    [0.0, 0.0, -0.1, 0.0],
-                    [0.0, 0.1, 0.0, 0.0],
-                    [0.0, 0.0, 0.0, 1.0],
-                ],
+                scale: 0.2,
+                x_rotate: None,
+                y_rotate: None,
+                model,
             }
         }
     }
 
     pub fn draw(&mut self) {
-        if self.draw_function.is_some() {
-            unsafe {
-                self.draw_function.unwrap()(self);
-            }
+        unsafe {
+            (self.draw_function)(self);
         }
     }
 

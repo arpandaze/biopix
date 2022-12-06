@@ -1,12 +1,11 @@
 mod model;
 mod opengl;
 
-use obj::{load_obj, Obj};
-use opengl::*;
-use std::fs::File;
-use std::io::BufReader;
+use model::Model;
 
-unsafe fn drawer2(renderer: &mut opengl::Renderer) {
+use opengl::*;
+
+unsafe fn drawer(renderer: &mut opengl::Renderer) {
     let vertex_shader =
         opengl::create_shader(&renderer.gl, gl::VERTEX_SHADER, VERTEX_SHADER_SOURCE);
     let fragment_shader = create_shader(&renderer.gl, gl::FRAGMENT_SHADER, FRAGMENT_SHADER_SOURCE);
@@ -31,8 +30,8 @@ unsafe fn drawer2(renderer: &mut opengl::Renderer) {
     renderer.gl.GenBuffers(1, &mut renderer.vbo);
     renderer.gl.BindBuffer(gl::ARRAY_BUFFER, renderer.vbo);
 
-    let vertex_data: Vec<f32> = model::MODEL_VERTICES.into();
-    let vertex_indices: Vec<u32> = model::MODEL_INDICES.into();
+    let vertex_data = &renderer.model.as_ref().unwrap().vertex;
+    let vertex_indices = &renderer.model.as_ref().unwrap().index;
 
     let mut indices: gl::types::GLuint = std::mem::zeroed();
 
@@ -87,17 +86,23 @@ unsafe fn drawer2(renderer: &mut opengl::Renderer) {
         .GetUniformLocation(renderer.program.unwrap(), b"scale\0".as_ptr() as *const _);
     renderer.gl.Uniform1f(scale_attrib, renderer.scale);
 
-    // Rotation Attribute
-    let rotation_attrib = renderer.gl.GetUniformLocation(
+    // X Rotation Attribute
+    let x_rotate_attrib = renderer.gl.GetUniformLocation(
         renderer.program.unwrap(),
-        b"rotation\0".as_ptr() as *const _,
+        b"x_rotate\0".as_ptr() as *const _,
     );
-    renderer.gl.UniformMatrix4fv(
-        rotation_attrib,
-        1,
-        gl::FALSE,
-        renderer.rotation.as_ptr() as *const _,
+    renderer
+        .gl
+        .Uniform1f(x_rotate_attrib, renderer.x_rotate.unwrap_or(0.0));
+
+    // Y Rotation Attribute
+    let y_rotate_attrib = renderer.gl.GetUniformLocation(
+        renderer.program.unwrap(),
+        b"y_rotate\0".as_ptr() as *const _,
     );
+    renderer
+        .gl
+        .Uniform1f(y_rotate_attrib, renderer.y_rotate.unwrap_or(0.0));
 
     renderer
         .gl
@@ -109,8 +114,21 @@ unsafe fn drawer2(renderer: &mut opengl::Renderer) {
 
     renderer.gl.ClearColor(0.1, 0.1, 0.1, 0.9);
     renderer.gl.Clear(gl::COLOR_BUFFER_BIT);
-    // renderer.gl.DrawArrays(gl::TRIANGLES, 0, 6);
     renderer.gl.BindBuffer(gl::ELEMENT_ARRAY_BUFFER, indices);
+
+    renderer.gl.Enable(gl::DEPTH_TEST);
+    renderer.gl.ClearColor(0.1, 0.1, 0.1, 0.9);
+    renderer
+        .gl
+        .Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
+    renderer.gl.DepthMask(gl::FALSE);
+    renderer.gl.DepthFunc(gl::LEQUAL);
+    renderer.gl.Enable(gl::CULL_FACE);
+    
+    // renderer.gl.CullFace(gl::BACK);
+    // renderer.gl.FrontFace(gl::CW);
+    // renderer.gl.CullFace(gl::FRONT);
+
     renderer.gl.DrawElements(
         gl::TRIANGLES,
         vertex_indices.len() as i32,
@@ -119,149 +137,59 @@ unsafe fn drawer2(renderer: &mut opengl::Renderer) {
     );
 }
 
-unsafe fn drawer(renderer: &mut opengl::Renderer) -> () {
-    let vertex_shader =
-        opengl::create_shader(&renderer.gl, gl::VERTEX_SHADER, VERTEX_SHADER_SOURCE);
-    let fragment_shader = create_shader(&renderer.gl, gl::FRAGMENT_SHADER, FRAGMENT_SHADER_SOURCE);
-
-    renderer.program = Some(renderer.gl.CreateProgram());
-
-    renderer
-        .gl
-        .AttachShader(renderer.program.unwrap(), vertex_shader);
-
-    renderer
-        .gl
-        .AttachShader(renderer.program.unwrap(), fragment_shader);
-
-    renderer.gl.LinkProgram(renderer.program.unwrap());
-
-    renderer.gl.UseProgram(renderer.program.unwrap());
-
-    // renderer.gl.DeleteShader(vertex_shader);
-    // renderer.gl.DeleteShader(fragment_shader);
-
-    renderer.gl.GenVertexArrays(1, &mut renderer.vao);
-    renderer.gl.BindVertexArray(renderer.vao);
-
-    renderer.gl.GenBuffers(1, &mut renderer.vbo);
-    renderer.gl.BindBuffer(gl::ARRAY_BUFFER, renderer.vbo);
-
-    #[rustfmt::skip]
-    let vertex_data: Vec<f32> = vec![
-        -0.5, -0.5, 1.0, 1.0, 0.0, 0.0,
-        0.5, -0.5, 1.0, 0.0, 1.0, 0.0,
-        -0.5, 0.5, 1.0, 0.0, 0.0, 1.0,
-        0.5, 0.5, 1.0, 1.0, 0.0, 0.0,
-        -0.5, 0.5, 1.0, 0.0, 0.0, 1.0,
-        0.5, -0.5, 1.0, 0.0, 1.0, 0.0,
-    ];
-
-    #[rustfmt::skip]
-    let vertex_data2: Vec<f32> = vec![
-        0.5, 0.5, 1.0, 1.0, 0.0, 0.0,
-        -0.5, 0.5, 1.0, 0.0, 1.0, 0.0,
-        0.5, -0.5, 1.0, 0.0, 0.0, 1.0,
-    ];
-
-    renderer.gl.BufferData(
-        gl::ARRAY_BUFFER,
-        (vertex_data.len() * std::mem::size_of::<f32>()) as gl::types::GLsizeiptr,
-        vertex_data.as_ptr() as *const _,
-        gl::STATIC_DRAW,
-    );
-
-    let pos_attrib = renderer.gl.GetAttribLocation(
-        renderer.program.unwrap(),
-        b"position\0".as_ptr() as *const _,
-    );
-
-    let color_attrib = renderer
-        .gl
-        .GetAttribLocation(renderer.program.unwrap(), b"color\0".as_ptr() as *const _);
-
-    renderer.gl.VertexAttribPointer(
-        pos_attrib as gl::types::GLuint,
-        3,
-        gl::FLOAT,
-        0,
-        6 * std::mem::size_of::<f32>() as gl::types::GLsizei,
-        std::ptr::null(),
-    );
-
-    renderer.gl.VertexAttribPointer(
-        color_attrib as gl::types::GLuint,
-        3,
-        gl::FLOAT,
-        0,
-        6 * std::mem::size_of::<f32>() as gl::types::GLsizei,
-        (3 * std::mem::size_of::<f32>()) as *const () as *const _,
-    );
-
-    renderer
-        .gl
-        .EnableVertexAttribArray(pos_attrib as gl::types::GLuint);
-
-    renderer
-        .gl
-        .EnableVertexAttribArray(color_attrib as gl::types::GLuint);
-
-    renderer.gl.ClearColor(0.1, 0.1, 0.1, 0.9);
-    renderer.gl.Clear(gl::COLOR_BUFFER_BIT);
-    renderer.gl.DrawArrays(gl::TRIANGLES, 0, 6);
-}
-
 const VERTEX_SHADER_SOURCE: &[u8] = b"
-#version 330
 precision mediump float;
 attribute vec3 position;
 attribute vec3 color;
 uniform float scale;
-uniform mat4 rotation;
+uniform float x_rotate;
+uniform float y_rotate;
 varying vec3 v_color;
 
+float s_x = sin(y_rotate);
+float c_x = cos(y_rotate);
+
+float s_y = sin(-x_rotate);
+float c_y = cos(-x_rotate);
+
+mat4 x_mat = mat4(
+    1, 0, 0, 0,
+    0, c_x, -s_x, 0,
+    0, s_x, c_x, 0,
+    0, 0, 0, 1
+);
+
+mat4 y_mat = mat4(
+    c_y, 0, -s_y, 0,
+    0,   1,    0, 0,
+    s_y, 0,  c_y, 0,
+    0,   0,    0, 1
+);
+
+// mat4 y_mat = mat4(
+//     c_y, -s_y, 0, 0,
+//     s_y, c_y, 0, 0,
+//     0, 0, 1, 0,
+//     0, 0, 0, 1
+// );
+
 void main() {
-    gl_Position = (rotation * vec4(position, 1.0));
+    gl_Position = y_mat * x_mat * vec4(scale * position, 1.0);
     v_color = color;
 }
 \0";
 
 const FRAGMENT_SHADER_SOURCE: &[u8] = b"
-#version 330
 precision mediump float;
 varying vec3 v_color;
 
 void main() {
-    gl_FragColor = vec4(v_color, 1.0);
+    gl_FragColor = vec4(vec3(gl_FragCoord.z), 1.0);
 }
 \0";
 
 pub fn main() {
-    // let input = BufReader::new(File::open("teapot.obj").unwrap());
-    // let model: Obj = load_obj(input).unwrap();
-    //
-    // let vertices = model
-    //     .vertices
-    //     .iter()
-    //     .flat_map(|item| {
-    //         let pos = item.position;
-    //
-    //         return [pos[0], pos[1], pos[2], 1.0, 1.0, 0.0];
-    //     })
-    //     .collect::<Vec<f32>>();
-    //
-    // let normals = model
-    //     .vertices
-    //     .iter()
-    //     .flat_map(|item| {
-    //         let pos = item.normal;
-    //
-    //         return [pos[0], pos[1], pos[2], 1.0, 1.0, 0.0];
-    //     })
-    //     .collect::<Vec<f32>>();
-    //
-    // println!("{:?}", normals);
-    // let indices = model.indices;
+    let model = Model::from("teapot.obj");
 
-    opengl::init(Some(drawer2));
+    opengl::init(drawer, Some(model));
 }
