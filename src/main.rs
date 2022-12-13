@@ -1,5 +1,8 @@
 mod model;
 mod opengl;
+mod sphere;
+mod scene;
+mod object;
 
 use model::Model;
 
@@ -32,6 +35,11 @@ unsafe fn drawer(renderer: &mut opengl::Renderer) {
 
     let vertex_data = &renderer.model.as_ref().unwrap().vertex;
     let vertex_indices = &renderer.model.as_ref().unwrap().index;
+
+    let object = sphere::Sphere::new(100, 100, 2.0, [1.0, 0.0, 1.0]);
+
+    // let vertex_data = object.vertices;
+    // let vertex_indices = object.indices;
 
     let mut indices: gl::types::GLuint = std::mem::zeroed();
 
@@ -114,20 +122,8 @@ unsafe fn drawer(renderer: &mut opengl::Renderer) {
 
     renderer.gl.ClearColor(0.1, 0.1, 0.1, 0.9);
     renderer.gl.Clear(gl::COLOR_BUFFER_BIT);
-    renderer.gl.BindBuffer(gl::ELEMENT_ARRAY_BUFFER, indices);
 
-    renderer.gl.Enable(gl::DEPTH_TEST);
-    renderer.gl.ClearColor(0.1, 0.1, 0.1, 0.9);
-    renderer
-        .gl
-        .Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
-    renderer.gl.DepthMask(gl::FALSE);
-    renderer.gl.DepthFunc(gl::LEQUAL);
     renderer.gl.Enable(gl::CULL_FACE);
-    
-    // renderer.gl.CullFace(gl::BACK);
-    // renderer.gl.FrontFace(gl::CW);
-    // renderer.gl.CullFace(gl::FRONT);
 
     renderer.gl.DrawElements(
         gl::TRIANGLES,
@@ -184,12 +180,12 @@ precision mediump float;
 varying vec3 v_color;
 
 void main() {
-    gl_FragColor = vec4(vec3(gl_FragCoord.z), 1.0);
+    gl_FragColor = vec4(v_color * vec3(gl_FragCoord.z), 1.0);
 }
 \0";
 
 pub fn main() {
-    let model = Model::from("teapot.obj");
+    let model = Model::from("sphere.obj");
 
     opengl::init(drawer, Some(model));
 }

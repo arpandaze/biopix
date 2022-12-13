@@ -9,13 +9,6 @@ pub struct Model {
     pub index: Vec<u32>,
 }
 
-impl Model{
-    pub fn translate(&mut self, x: f32, y: f32, z: f32){
-
-
-    }
-}
-
 impl From<&str> for Model {
     fn from(model_name: &str) -> Self {
         let input = BufReader::new(File::open(model_name).unwrap());
