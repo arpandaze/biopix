@@ -8,8 +8,6 @@ glutin = "0.30.2"
 winit = "0.27.5"
 raw-window-handle = "0.5.0"
 glutin-winit = "0.2.1"
-png = { version = "0.17.6", optional = true }
-obj-rs = "0.7.0"
 pdbtbx = "0.10.1"
 lazy_static = "1.4.0"
 

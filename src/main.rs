@@ -1,5 +1,4 @@
 mod cylinder;
-mod model;
 mod object;
 mod opengl;
 mod scene;

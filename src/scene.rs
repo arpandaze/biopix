@@ -40,25 +40,25 @@ impl From<&str> for Scene {
             if !atom.hetero() {
                 match atom.element() {
                     Some(Element::O) => {
-                        let mut model = Sphere::new(10, 10, 100.0, [1.0, 0.0, 1.0]);
+                        let mut model = Sphere::new(10, 10, 25.0, [1.0, 0.0, 1.0]);
                         model.scale(0.012369, 0.012369, 0.012369);
                         model.translate(atom.x() as f32, atom.y() as f32, atom.z() as f32);
                         spheres.push(model);
                     }
                     Some(Element::H) => {
-                        let mut model = Sphere::new(10, 10, 100.0, [1.0, 0.0, 0.0]);
+                        let mut model = Sphere::new(10, 10, 25.0, [1.0, 0.0, 0.0]);
                         model.scale(0.012369, 0.012369, 0.012369);
                         model.translate(atom.x() as f32, atom.y() as f32, atom.z() as f32);
                         spheres.push(model);
                     }
                     Some(Element::C) => {
-                        let mut model = Sphere::new(10, 10, 100.0, [0.0, 1.0, 0.0]);
+                        let mut model = Sphere::new(10, 10, 50.0, [0.0, 1.0, 0.0]);
                         model.scale(0.012369, 0.012369, 0.012369);
                         model.translate(atom.x() as f32, atom.y() as f32, atom.z() as f32);
                         spheres.push(model);
                     }
                     Some(Element::N) => {
-                        let mut model = Sphere::new(10, 10, 100.0, [0.0, 0.0, 1.0]);
+                        let mut model = Sphere::new(10, 10, 42.3, [0.0, 0.0, 1.0]);
                         model.scale(0.012369, 0.012369, 0.012369);
                         model.translate(atom.x() as f32, atom.y() as f32, atom.z() as f32);
                         spheres.push(model);
