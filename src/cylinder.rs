@@ -1,7 +1,7 @@
 use crate::object::Object;
 use std::f32;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Cylinder {
     pub vertices: Vec<f32>,
     pub normal_vertices: Vec<f32>,
@@ -14,11 +14,12 @@ pub struct Cylinder {
     height: f32,
     base_center_index: u32,
     top_center_index: u32,
+    interlaced_vertices: Vec<f32>,
 }
 
 impl Cylinder {
     pub fn new(radius: f32, height: f32, sector_count: u32, color: [f32; 3]) -> Cylinder {
-        let mut sphere = Cylinder {
+        let mut cyl = Cylinder {
             vertices: vec![],
             normal_vertices: vec![],
             indices: vec![],
@@ -29,12 +30,14 @@ impl Cylinder {
             sector_count,
             radius,
             height,
+            interlaced_vertices: vec![],
         };
 
-        sphere.generate_vertices();
-        sphere.generate_indices();
+        cyl.generate_vertices();
+        cyl.generate_indices();
+        cyl.interlaced_vertices_generator();
 
-        return sphere;
+        return cyl;
     }
 
     fn get_unit_circle_vertices(&self) -> Vec<f32> {
@@ -165,6 +168,17 @@ impl Cylinder {
             k += 1;
         }
     }
+
+    fn interlaced_vertices_generator(&mut self) {
+        self.interlaced_vertices = self
+            .vertices()
+            .chunks(3)
+            .zip(self.normal_vertices().chunks(3))
+            .zip(self.colors().chunks(3))
+            .flat_map(|(a, b)| a.0.into_iter().chain(a.1).chain(b))
+            .copied()
+            .collect::<Vec<f32>>();
+    }
 }
 
 impl Object for Cylinder {
@@ -186,5 +200,13 @@ impl Object for Cylinder {
 
     fn normal_vertices(&self) -> &Vec<f32> {
         return &self.normal_vertices;
+    }
+
+    fn interlaced_vertices(&self) -> &Vec<f32> {
+        return &self.interlaced_vertices;
+    }
+
+    fn generate_interlaced_vertices(&mut self) {
+        self.interlaced_vertices_generator();
     }
 }

@@ -1,74 +1,100 @@
+use crate::cylinder::Cylinder;
 use crate::object::Object;
+use crate::sphere::Sphere;
+use pdbtbx;
+use pdbtbx::*;
 
-#[derive(Debug)]
+#[derive(Clone)]
+pub enum ModelTypes {
+    Sphere(super::sphere::Sphere),
+    Cylinder(super::cylinder::Cylinder),
+}
+
+#[derive(Clone)]
 pub struct Scene {
-    pub vertices: Vec<f32>,
-    pub normal_vertices: Vec<f32>,
-    pub colors: Vec<f32>,
-    pub indices: Vec<u32>,
+    pub spheres: Vec<Sphere>,
+    pub cyliders: Vec<Cylinder>,
 }
 
 impl Default for Scene {
     fn default() -> Self {
         Self {
-            vertices: Vec::new(),
-            normal_vertices: Vec::new(),
-            indices: Vec::new(),
-            colors: Vec::new(),
+            spheres: Vec::new(),
+            cyliders: Vec::new(),
         }
     }
 }
 
-impl Scene {
-    pub fn add(&mut self, object: &dyn Object) {
-        let old_vertex_count = self.vertices.len();
+impl From<&str> for Scene {
+    fn from(filename: &str) -> Self {
+        let (mut pdb, _) = pdbtbx::open_pdb(filename, StrictnessLevel::Loose).unwrap();
 
-        self.vertices.append(&mut object.vertices().clone());
-        self.normal_vertices.append(&mut object.normal_vertices().clone());
-        self.colors.append(&mut object.colors().clone());
+        let atoms = pdb.atoms().collect::<Vec<&Atom>>();
 
-        let mut new_indices = object
-            .indices()
-            .iter()
-            .map(|index| index + old_vertex_count as u32)
-            .collect::<Vec<u32>>();
+        let scale = &pdb.scale;
 
-        self.indices.append(&mut new_indices);
+        println!("{:?}", scale);
+
+        let mut spheres = Vec::<Sphere>::new();
+        atoms.iter().for_each(|atom| {
+            if !atom.hetero() {
+                match atom.element() {
+                    Some(Element::O) => {
+                        let mut model = Sphere::new(10, 10, 100.0, [1.0, 0.0, 1.0]);
+                        model.scale(0.012369, 0.012369, 0.012369);
+                        model.translate(atom.x() as f32, atom.y() as f32, atom.z() as f32);
+                        spheres.push(model);
+                    }
+                    Some(Element::H) => {
+                        let mut model = Sphere::new(10, 10, 100.0, [1.0, 0.0, 0.0]);
+                        model.scale(0.012369, 0.012369, 0.012369);
+                        model.translate(atom.x() as f32, atom.y() as f32, atom.z() as f32);
+                        spheres.push(model);
+                    }
+                    Some(Element::C) => {
+                        let mut model = Sphere::new(10, 10, 100.0, [0.0, 1.0, 0.0]);
+                        model.scale(0.012369, 0.012369, 0.012369);
+                        model.translate(atom.x() as f32, atom.y() as f32, atom.z() as f32);
+                        spheres.push(model);
+                    }
+                    Some(Element::N) => {
+                        let mut model = Sphere::new(10, 10, 100.0, [0.0, 0.0, 1.0]);
+                        model.scale(0.012369, 0.012369, 0.012369);
+                        model.translate(atom.x() as f32, atom.y() as f32, atom.z() as f32);
+                        spheres.push(model);
+                    }
+                    _ => {}
+                }
+            }
+        });
+
+        return Self {
+            spheres: Vec::from(spheres),
+            cyliders: vec![],
+        };
     }
 }
 
-impl Object for Scene {
-    fn indices(&self) -> &Vec<u32> {
-        return &self.indices;
+impl Scene {
+    pub fn add(&mut self, object: ModelTypes) {
+        match object {
+            ModelTypes::Sphere(s) => self.spheres.push(s),
+            ModelTypes::Cylinder(c) => self.cyliders.push(c),
+        }
     }
 
-    fn vertices_mut(&mut self) -> &mut Vec<f32> {
-        return &mut self.vertices;
-    }
-
-    fn vertices(&self) -> &Vec<f32> {
-        return &self.vertices;
-    }
-
-    fn colors(&self) -> &Vec<f32> {
-        return &self.colors;
-    }
-
-    fn normal_vertices(&self) -> &Vec<f32> {
-        return &self.normal_vertices;
+    pub fn render(&self, renderer: &mut crate::opengl::Renderer) {
+        for model in &self.spheres {
+            unsafe {
+                model.drawer(renderer);
+            }
+        }
     }
 }
 
 #[test]
-fn test_scene() {
-    let sphere1 = crate::sphere::Sphere::new(3, 3, 5.0, [1.0, 1.0, 1.0]);
-    let mut sphere2 = crate::sphere::Sphere::new(3, 3, 5.0, [1.0, 1.0, 1.0]);
-    sphere2.translate(10.0, 0.0, 0.0);
+fn testpdb() {
+    let test = Scene::from("1k8h.pdb");
 
-    let mut test_scene = Scene::default();
-
-    test_scene.add(&sphere2);
-    test_scene.add(&sphere1);
-
-    println!("{:?}",test_scene.interlaced_vertices());
+    println!("{:?}", test.spheres.len());
 }

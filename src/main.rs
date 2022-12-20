@@ -5,10 +5,13 @@ mod opengl;
 mod scene;
 mod sphere;
 
-use model::Model;
-use object::Object;
+use lazy_static::lazy_static;
 
 use opengl::*;
+
+lazy_static! {
+    static ref SCENE: scene::Scene = scene::Scene::from("1d66.pdb");
+}
 
 unsafe fn drawer(renderer: &mut opengl::Renderer) {
     let vertex_shader =
@@ -35,7 +38,6 @@ unsafe fn drawer(renderer: &mut opengl::Renderer) {
     renderer.gl.GenBuffers(1, &mut renderer.vbo);
     renderer.gl.BindBuffer(gl::ARRAY_BUFFER, renderer.vbo);
 
-    // renderer.gl.Enable(gl::CULL_FACE);
     renderer.gl.Enable(gl::DEPTH_TEST);
     renderer.gl.DepthFunc(gl::LESS);
 
@@ -43,11 +45,8 @@ unsafe fn drawer(renderer: &mut opengl::Renderer) {
     renderer.gl.Clear(gl::DEPTH_BUFFER_BIT);
     renderer.gl.ClearColor(0.1, 0.1, 0.1, 1.0);
 
-    let sphere1 = sphere::Sphere::new(100, 100, 5.0, [1.0, 1.0, 1.0]);
-    sphere1.drawer(renderer);
-    // let mut sphere2 = sphere::Sphere::new(100, 100, 5.0, [1.0, 1.0, 1.0]);
-    let cyl1 = cylinder::Cylinder::new(2.0, 10.0, 100, [1.0, 0.0, 0.0]);
-    cyl1.drawer(renderer);
+    let render_scene = renderer.scene.clone();
+    render_scene.render(renderer);
 }
 
 const VERTEX_SHADER_SOURCE: &[u8] = b"
@@ -62,6 +61,7 @@ uniform float y_rotate;
 varying vec3 v_position;
 varying vec3 v_normal;
 varying vec3 v_color;
+varying mat4 light_dirn;
 
 float s_x = sin(y_rotate);
 float c_x = cos(y_rotate);
@@ -90,6 +90,7 @@ void main() {
     v_color = color;
     v_normal = normal;
     v_position = vec3(final_position);
+    light_dirn = y_mat * x_mat;
 }
 \0";
 
@@ -99,9 +100,10 @@ precision mediump float;
 varying vec3 v_position;
 varying vec3 v_normal;
 varying vec3 v_color;
+varying mat4 light_dirn;
 
-vec3 light_position = vec3(-10.0, -10.0, -10.0);
-vec3 light_color = vec3(0.2, 0.2, 0.2);
+vec3 light_position = vec3(light_dirn * vec4(vec3(-100.0, -100.0, -100.0),1.0));
+vec3 light_color = vec3(0.5, 0.5, 0.5);
 vec3 ambient_color = vec3(0.0, 0.0, 0.0);
 float shininess = 0.0;
 
@@ -116,7 +118,7 @@ void main()
     vec3 diffuseColor = v_color * light_color * diffuse;
 
     // Calculate specular lighting
-    vec3 viewDirection = normalize(-v_position);
+    vec3 viewDirection = normalize(-lightDirection);
     vec3 reflectDirection = reflect(-lightDirection, v_normal);
     float specular = pow(max(dot(viewDirection, reflectDirection), 0.0), shininess);
     vec3 specularColor = light_color * specular;
@@ -129,7 +131,5 @@ void main()
 \0";
 
 pub fn main() {
-    let model = Model::from("monkey.obj");
-
-    opengl::init(drawer, Some(model));
+    opengl::init(drawer, &SCENE);
 }

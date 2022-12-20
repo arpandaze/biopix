@@ -43,6 +43,7 @@ dependencies = [
  "gl_generator",
  "glutin",
  "glutin-winit",
+ "lazy_static",
  "obj-rs",
  "pdbtbx",
  "png",

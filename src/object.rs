@@ -8,6 +8,7 @@ pub trait Object {
     fn colors(&self) -> &Vec<f32>;
     fn normal_vertices(&self) -> &Vec<f32>;
     fn indices(&self) -> &Vec<u32>;
+    fn generate_interlaced_vertices(&mut self);
 
     fn translate(&mut self, x: f32, y: f32, z: f32) {
         let vertices = self.vertices_mut();
@@ -16,7 +17,9 @@ pub trait Object {
             point[0] += x;
             point[1] += y;
             point[2] += z;
-        })
+        });
+
+        self.generate_interlaced_vertices();
     }
 
     fn scale(&mut self, x: f32, y: f32, z: f32) {
@@ -26,30 +29,13 @@ pub trait Object {
             point[0] *= x;
             point[1] *= y;
             point[2] *= z;
-        })
+        });
+        self.generate_interlaced_vertices();
     }
 
-    fn interlaced_vertices(&self) -> Vec<f32> {
-        return self
-            .vertices()
-            .chunks(3)
-            .zip(self.normal_vertices().chunks(3))
-            .zip(self.colors().chunks(3))
-            .flat_map(|(a, b)| a.0.into_iter().chain(a.1).chain(b))
-            .copied()
-            .collect::<Vec<f32>>();
-    }
+    fn interlaced_vertices(&self) -> &Vec<f32>;
 
     unsafe fn drawer(&self, renderer: &mut opengl::Renderer) {
-        // let mut vao = std::mem::zeroed();
-        // let mut vbo = std::mem::zeroed();
-        //
-        // renderer.gl.GenVertexArrays(1, &mut vao);
-        // renderer.gl.BindVertexArray(vao);
-        //
-        // renderer.gl.GenBuffers(1, &mut vbo);
-        // renderer.gl.BindBuffer(gl::ARRAY_BUFFER, vbo);
-
         let vertices = self.interlaced_vertices();
         let indices = self.indices();
 

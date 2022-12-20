@@ -1,7 +1,7 @@
 use crate::object::Object;
 use std::f32;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Sphere {
     pub vertices: Vec<f32>,
     pub normal_vertices: Vec<f32>,
@@ -12,6 +12,8 @@ pub struct Sphere {
     sector_count: u32,
     stack_count: u32,
     radius: f32,
+
+    interlaced_vertices: Vec<f32>,
 }
 
 impl Sphere {
@@ -25,10 +27,12 @@ impl Sphere {
             sector_count,
             stack_count,
             radius,
+            interlaced_vertices: vec![],
         };
 
         sphere.generate_vertices();
         sphere.generate_indices();
+        sphere.interlaced_vertices_generator();
 
         return sphere;
     }
@@ -95,6 +99,17 @@ impl Sphere {
             }
         }
     }
+
+    fn interlaced_vertices_generator(&mut self) {
+        self.interlaced_vertices = self
+            .vertices()
+            .chunks(3)
+            .zip(self.normal_vertices().chunks(3))
+            .zip(self.colors().chunks(3))
+            .flat_map(|(a, b)| a.0.into_iter().chain(a.1).chain(b))
+            .copied()
+            .collect::<Vec<f32>>();
+    }
 }
 
 impl Object for Sphere {
@@ -116,5 +131,13 @@ impl Object for Sphere {
 
     fn normal_vertices(&self) -> &Vec<f32> {
         return &self.normal_vertices;
+    }
+
+    fn interlaced_vertices(&self) -> &Vec<f32> {
+        return &self.interlaced_vertices;
+    }
+
+    fn generate_interlaced_vertices(&mut self) {
+        self.interlaced_vertices_generator();
     }
 }

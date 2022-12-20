@@ -23,7 +23,7 @@ pub mod gl {
     // pub use Gles2 as Gl;
 }
 
-pub fn init(draw_function: unsafe fn(&mut Renderer) -> (), model: Option<crate::Model>) {
+pub fn init(draw_function: unsafe fn(&mut Renderer) -> (), scene: &'static crate::scene::Scene) {
     let event_loop = EventLoopBuilder::new().build();
 
     let window_builder = Some(
@@ -101,7 +101,7 @@ pub fn init(draw_function: unsafe fn(&mut Renderer) -> (), model: Option<crate::
                     .make_current(&gl_window.surface)
                     .unwrap();
 
-                renderer.get_or_insert_with(|| Renderer::new(&gl_display, draw_function, model.clone()));
+                renderer.get_or_insert_with(|| Renderer::new(&gl_display, draw_function, scene));
 
                 if let Err(res) = gl_window
                     .surface
@@ -139,10 +139,10 @@ pub fn init(draw_function: unsafe fn(&mut Renderer) -> (), model: Option<crate::
                     winit::event::MouseScrollDelta::LineDelta(_, dirn) => {
                         if dirn < 0.0 {
                             let current_scale = renderer.as_ref().unwrap().scale;
-                            renderer.as_mut().unwrap().scale = current_scale - 0.01;
+                            renderer.as_mut().unwrap().scale = current_scale - 0.002;
                         } else {
                             let current_scale = renderer.as_ref().unwrap().scale;
-                            renderer.as_mut().unwrap().scale = current_scale + 0.01;
+                            renderer.as_mut().unwrap().scale = current_scale + 0.002;
                         }
                     }
                     _ => {}
@@ -151,11 +151,11 @@ pub fn init(draw_function: unsafe fn(&mut Renderer) -> (), model: Option<crate::
                     if mouse_hold {
                         x_diff += prev_x - position.x;
 
-                        renderer.as_mut().unwrap().x_rotate = Some(x_diff as f32 / 50.0);
+                        renderer.as_mut().unwrap().x_rotate = Some(x_diff as f32 / 200.0);
 
                         y_diff += prev_y - position.y;
 
-                        renderer.as_mut().unwrap().y_rotate = Some(y_diff as f32 / 50.0);
+                        renderer.as_mut().unwrap().y_rotate = Some(y_diff as f32 / 200.0);
                     }
                     prev_x = position.x;
                     prev_y = position.y;
@@ -209,24 +209,23 @@ impl GlWindow {
     }
 }
 
-pub struct Renderer {
+pub struct Renderer<'a> {
     pub vao: gl::types::GLuint,
     pub vbo: gl::types::GLuint,
     pub program: Option<gl::types::GLuint>,
     pub gl: gl::Gl,
     pub draw_function: unsafe fn(&mut Renderer) -> (),
     pub scale: f32,
-    // pub rotation: [[f32; 4]; 4],
     pub x_rotate: Option<f32>,
     pub y_rotate: Option<f32>,
-    pub model: Option<crate::Model>,
+    pub scene: &'a crate::scene::Scene,
 }
 
-impl Renderer {
+impl Renderer<'_> {
     pub fn new<D: GlDisplay>(
         gl_display: &D,
         draw_function: unsafe fn(&mut Renderer) -> (),
-        model: Option<crate::Model>,
+        scene: &'static crate::scene::Scene,
     ) -> Self {
         unsafe {
             let gl = gl::Gl::load_with(|symbol| {
@@ -254,7 +253,7 @@ impl Renderer {
                 scale: 0.1,
                 x_rotate: None,
                 y_rotate: None,
-                model,
+                scene,
             }
         }
     }
@@ -278,7 +277,7 @@ impl Renderer {
     }
 }
 
-impl Deref for Renderer {
+impl Deref for Renderer<'_> {
     type Target = gl::Gl;
 
     fn deref(&self) -> &Self::Target {
@@ -286,7 +285,7 @@ impl Deref for Renderer {
     }
 }
 
-impl Drop for Renderer {
+impl Drop for Renderer<'_> {
     fn drop(&mut self) {
         unsafe {
             if let Some(program) = self.program {
