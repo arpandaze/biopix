@@ -251,7 +251,7 @@ impl Renderer {
                 program: None,
                 gl,
                 draw_function,
-                scale: 0.2,
+                scale: 0.1,
                 x_rotate: None,
                 y_rotate: None,
                 model,

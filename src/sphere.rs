@@ -1,3 +1,4 @@
+use crate::object::Object;
 use std::f32;
 
 #[derive(Debug)]
@@ -5,6 +6,7 @@ pub struct Sphere {
     pub vertices: Vec<f32>,
     pub normal_vertices: Vec<f32>,
     pub indices: Vec<u32>,
+    pub colors: Vec<f32>,
 
     color: [f32; 3],
     sector_count: u32,
@@ -18,6 +20,7 @@ impl Sphere {
             vertices: vec![],
             normal_vertices: vec![],
             indices: vec![],
+            colors: vec![],
             color,
             sector_count,
             stack_count,
@@ -58,7 +61,7 @@ impl Sphere {
                 self.vertices.push(x);
                 self.vertices.push(y);
                 self.vertices.push(z);
-                self.vertices.append(&mut self.color.to_vec());
+                self.colors.append(&mut self.color.to_vec());
 
                 nx = x * length_inv;
                 ny = y * length_inv;
@@ -94,17 +97,24 @@ impl Sphere {
     }
 }
 
-impl crate::object::Object for Sphere {
-    fn indices(&mut self) -> &mut Vec<u32> {
-        return &mut self.indices;
+impl Object for Sphere {
+    fn indices(&self) -> &Vec<u32> {
+        return &self.indices;
     }
-    fn vertices(&mut self) -> &mut Vec<f32> {
+
+    fn vertices_mut(&mut self) -> &mut Vec<f32> {
         return &mut self.vertices;
     }
-    fn normal_vertices(&mut self) -> &mut Vec<f32> {
-        return &mut self.normal_vertices;
+
+    fn vertices(&self) -> &Vec<f32> {
+        return &self.vertices;
+    }
+
+    fn colors(&self) -> &Vec<f32> {
+        return &self.colors;
+    }
+
+    fn normal_vertices(&self) -> &Vec<f32> {
+        return &self.normal_vertices;
     }
 }
-
-#[test]
-fn test_fun() {}
