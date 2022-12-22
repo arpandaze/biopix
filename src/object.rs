@@ -46,11 +46,6 @@ pub trait Object {
             gl::STATIC_DRAW,
         );
 
-        // Indices
-        let mut indices_p: gl::types::GLuint = std::mem::zeroed();
-
-        renderer.gl.GenBuffers(1, &mut indices_p);
-        renderer.gl.BindBuffer(gl::ELEMENT_ARRAY_BUFFER, indices_p);
         renderer.gl.BufferData(
             gl::ELEMENT_ARRAY_BUFFER,
             (indices.len() * std::mem::size_of::<u32>()) as gl::types::GLsizeiptr,

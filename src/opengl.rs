@@ -1,4 +1,7 @@
 use std::ffi::{CStr, CString};
+use std::fs::File;
+use std::io::Read;
+
 use std::num::NonZeroU32;
 use std::ops::Deref;
 
@@ -15,15 +18,46 @@ use glutin::prelude::*;
 use glutin::surface::{Surface, SurfaceAttributesBuilder, SwapInterval, WindowSurface};
 
 use glutin_winit::{self, DisplayBuilder};
+use lazy_static::lazy_static;
 
 pub mod gl {
     #![allow(clippy::all)]
     include!(concat!(env!("OUT_DIR"), "/gl_bindings.rs"));
-
-    // pub use Gles2 as Gl;
 }
 
-pub fn init(draw_function: unsafe fn(&mut Renderer) -> (), scene: &'static crate::scene::Scene) {
+fn get_fragment_shader() -> Vec<u8> {
+    let mut fragment_file = File::open("src/shaders/fragment.glsl").unwrap();
+
+    let mut fragment_content = Vec::new();
+
+    fragment_file.read_to_end(&mut fragment_content).unwrap();
+
+    fragment_content.push(0);
+
+    return fragment_content;
+}
+
+fn get_vertex_shaders() -> Vec<u8> {
+    let mut vertex_file = File::open("src/shaders/vertex.glsl").unwrap();
+
+    let mut vertex_contents = Vec::new();
+
+    vertex_file.read_to_end(&mut vertex_contents).unwrap();
+
+    vertex_contents.push(0);
+
+    return vertex_contents;
+}
+
+lazy_static! {
+    static ref VERTEX_SHADER: Vec<u8> = get_vertex_shaders();
+    static ref FRAGMENT_SHADER: Vec<u8> = get_fragment_shader();
+}
+
+pub fn init(
+    draw_function: Option<unsafe fn(&mut Renderer) -> ()>,
+    scene: &'static crate::scene::Scene,
+) {
     let event_loop = EventLoopBuilder::new().build();
 
     let window_builder = Some(
@@ -212,9 +246,10 @@ impl GlWindow {
 pub struct Renderer<'a> {
     pub vao: gl::types::GLuint,
     pub vbo: gl::types::GLuint,
+    pub ibo: gl::types::GLuint,
     pub program: Option<gl::types::GLuint>,
     pub gl: gl::Gl,
-    pub draw_function: unsafe fn(&mut Renderer) -> (),
+    pub draw_function: Option<unsafe fn(&mut Renderer) -> ()>,
     pub scale: f32,
     pub x_rotate: Option<f32>,
     pub y_rotate: Option<f32>,
@@ -224,7 +259,7 @@ pub struct Renderer<'a> {
 impl Renderer<'_> {
     pub fn new<D: GlDisplay>(
         gl_display: &D,
-        draw_function: unsafe fn(&mut Renderer) -> (),
+        draw_function: Option<unsafe fn(&mut Renderer) -> ()>,
         scene: &'static crate::scene::Scene,
     ) -> Self {
         unsafe {
@@ -247,6 +282,7 @@ impl Renderer<'_> {
             Self {
                 vao: std::mem::zeroed(),
                 vbo: std::mem::zeroed(),
+                ibo: std::mem::zeroed(),
                 program: None,
                 gl,
                 draw_function,
@@ -260,7 +296,42 @@ impl Renderer<'_> {
 
     pub fn draw(&mut self) {
         unsafe {
-            (self.draw_function)(self);
+            if self.draw_function.is_none() {
+                let vertex_shader = create_shader(&self.gl, gl::VERTEX_SHADER, &VERTEX_SHADER);
+                let fragment_shader =
+                    create_shader(&self.gl, gl::FRAGMENT_SHADER, &FRAGMENT_SHADER);
+
+                self.program = Some(self.gl.CreateProgram());
+
+                self.gl.AttachShader(self.program.unwrap(), vertex_shader);
+
+                self.gl.AttachShader(self.program.unwrap(), fragment_shader);
+
+                self.gl.LinkProgram(self.program.unwrap());
+
+                self.gl.UseProgram(self.program.unwrap());
+
+                self.gl.GenVertexArrays(1, &mut self.vao);
+                self.gl.BindVertexArray(self.vao);
+
+                self.gl.GenBuffers(1, &mut self.vbo);
+                self.gl.BindBuffer(gl::ARRAY_BUFFER, self.vbo);
+
+                self.gl.GenBuffers(1, &mut self.ibo);
+                self.gl.BindBuffer(gl::ELEMENT_ARRAY_BUFFER, self.ibo);
+
+                self.gl.Enable(gl::DEPTH_TEST);
+                self.gl.DepthFunc(gl::LESS);
+
+                self.gl.Clear(gl::COLOR_BUFFER_BIT);
+                self.gl.Clear(gl::DEPTH_BUFFER_BIT);
+                self.gl.ClearColor(0.1, 0.1, 0.1, 1.0);
+
+                let render_scene = self.scene.clone();
+                render_scene.render(self);
+            } else {
+                self.draw_function.unwrap()(self);
+            }
         }
     }
 
@@ -292,6 +363,7 @@ impl Drop for Renderer<'_> {
                 self.gl.DeleteProgram(program);
             }
             self.gl.DeleteBuffers(1, &self.vbo);
+            self.gl.DeleteBuffers(1, &self.ibo);
             self.gl.DeleteVertexArrays(1, &self.vao);
         }
     }
