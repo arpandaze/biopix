@@ -7,6 +7,7 @@ use std::ops::Deref;
 
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::EventLoopBuilder;
+use winit::platform::run_return::EventLoopExtRunReturn;
 use winit::window::{Window, WindowBuilder};
 
 use raw_window_handle::HasRawWindowHandle;
@@ -54,11 +55,8 @@ lazy_static! {
     static ref FRAGMENT_SHADER: Vec<u8> = get_fragment_shader();
 }
 
-pub fn init(
-    draw_function: Option<unsafe fn(&mut Renderer) -> ()>,
-    scene: &'static crate::scene::Scene,
-) {
-    let event_loop = EventLoopBuilder::new().build();
+pub fn init<'a>(scene: &'a crate::scene::Scene) -> () {
+    let mut event_loop = EventLoopBuilder::new().build();
 
     let window_builder = Some(
         WindowBuilder::new()
@@ -117,104 +115,110 @@ pub fn init(
     let mut x_diff = 0.0;
     let mut y_diff = 0.0;
 
-    event_loop.run(move |event, window_target, control_flow| {
-        control_flow.set_wait();
-        match event {
-            Event::Resumed => {
-                let window = window.take().unwrap_or_else(|| {
-                    let window_builder = WindowBuilder::new().with_transparent(true);
-                    glutin_winit::finalize_window(window_target, window_builder, &gl_config)
+    let event_loop_closure = {
+        move |event: Event<()>,
+              window_target: &winit::event_loop::EventLoopWindowTarget<()>,
+              control_flow: &mut winit::event_loop::ControlFlow| {
+            control_flow.set_wait();
+            match event {
+                Event::Resumed => {
+                    let window = window.take().unwrap_or_else(|| {
+                        let window_builder = WindowBuilder::new().with_transparent(true);
+                        glutin_winit::finalize_window(window_target, window_builder, &gl_config)
+                            .unwrap()
+                    });
+
+                    let gl_window = GlWindow::new(window, &gl_config);
+
+                    let gl_context = not_current_gl_context
+                        .take()
                         .unwrap()
-                });
+                        .make_current(&gl_window.surface)
+                        .unwrap();
 
-                let gl_window = GlWindow::new(window, &gl_config);
+                    renderer.get_or_insert_with(|| Renderer::new(&gl_display, scene));
 
-                let gl_context = not_current_gl_context
-                    .take()
-                    .unwrap()
-                    .make_current(&gl_window.surface)
-                    .unwrap();
+                    if let Err(res) = gl_window.surface.set_swap_interval(
+                        &gl_context,
+                        SwapInterval::Wait(NonZeroU32::new(1).unwrap()),
+                    ) {
+                        eprintln!("Error setting vsync: {:?}", res);
+                    }
 
-                renderer.get_or_insert_with(|| Renderer::new(&gl_display, draw_function, scene));
-
-                if let Err(res) = gl_window
-                    .surface
-                    .set_swap_interval(&gl_context, SwapInterval::Wait(NonZeroU32::new(1).unwrap()))
-                {
-                    eprintln!("Error setting vsync: {:?}", res);
+                    assert!(state.replace((gl_context, gl_window)).is_none());
                 }
-
-                assert!(state.replace((gl_context, gl_window)).is_none());
-            }
-            Event::Suspended => {
-                let (gl_context, _) = state.take().unwrap();
-                assert!(not_current_gl_context
-                    .replace(gl_context.make_not_current().unwrap())
-                    .is_none());
-            }
-            Event::WindowEvent { event, .. } => match event {
-                WindowEvent::Resized(size) => {
-                    if size.width != 0 && size.height != 0 {
-                        if let Some((gl_context, gl_window)) = &state {
-                            gl_window.surface.resize(
-                                gl_context,
-                                NonZeroU32::new(size.width).unwrap(),
-                                NonZeroU32::new(size.height).unwrap(),
-                            );
-                            let renderer = renderer.as_ref().unwrap();
-                            renderer.resize(size.width as i32, size.height as i32);
+                Event::Suspended => {
+                    let (gl_context, _) = state.take().unwrap();
+                    assert!(not_current_gl_context
+                        .replace(gl_context.make_not_current().unwrap())
+                        .is_none());
+                }
+                Event::WindowEvent { event, .. } => match event {
+                    WindowEvent::Resized(size) => {
+                        if size.width != 0 && size.height != 0 {
+                            if let Some((gl_context, gl_window)) = &state {
+                                gl_window.surface.resize(
+                                    gl_context,
+                                    NonZeroU32::new(size.width).unwrap(),
+                                    NonZeroU32::new(size.height).unwrap(),
+                                );
+                                let renderer = renderer.as_ref().unwrap();
+                                renderer.resize(size.width as i32, size.height as i32);
+                            }
                         }
                     }
-                }
-                WindowEvent::CloseRequested => {
-                    control_flow.set_exit();
-                }
-                WindowEvent::MouseWheel { delta, .. } => match delta {
-                    winit::event::MouseScrollDelta::LineDelta(_, dirn) => {
-                        if dirn < 0.0 {
-                            let current_scale = renderer.as_ref().unwrap().scale;
-                            renderer.as_mut().unwrap().scale = current_scale - 0.002;
-                        } else {
-                            let current_scale = renderer.as_ref().unwrap().scale;
-                            renderer.as_mut().unwrap().scale = current_scale + 0.002;
+                    WindowEvent::CloseRequested => {
+                        control_flow.set_exit();
+                    }
+                    WindowEvent::MouseWheel { delta, .. } => match delta {
+                        winit::event::MouseScrollDelta::LineDelta(_, dirn) => {
+                            if dirn < 0.0 {
+                                let current_scale = renderer.as_ref().unwrap().scale;
+                                renderer.as_mut().unwrap().scale = current_scale - 0.002;
+                            } else {
+                                let current_scale = renderer.as_ref().unwrap().scale;
+                                renderer.as_mut().unwrap().scale = current_scale + 0.002;
+                            }
+                        }
+                        _ => {}
+                    },
+                    WindowEvent::CursorMoved { position, .. } => {
+                        if mouse_hold {
+                            x_diff += prev_x - position.x;
+
+                            renderer.as_mut().unwrap().x_rotate = Some(x_diff as f32 / 200.0);
+
+                            y_diff += prev_y - position.y;
+
+                            renderer.as_mut().unwrap().y_rotate = Some(y_diff as f32 / 200.0);
+                        }
+                        prev_x = position.x;
+                        prev_y = position.y;
+                    }
+
+                    WindowEvent::MouseInput { state, .. } => {
+                        mouse_hold = match state {
+                            winit::event::ElementState::Pressed => true,
+                            winit::event::ElementState::Released => false,
                         }
                     }
-                    _ => {}
+                    _ => (),
                 },
-                WindowEvent::CursorMoved { position, .. } => {
-                    if mouse_hold {
-                        x_diff += prev_x - position.x;
+                Event::RedrawEventsCleared => {
+                    if let Some((gl_context, gl_window)) = &state {
+                        let renderer = renderer.as_mut().unwrap();
+                        renderer.draw();
+                        gl_window.window.request_redraw();
 
-                        renderer.as_mut().unwrap().x_rotate = Some(x_diff as f32 / 200.0);
-
-                        y_diff += prev_y - position.y;
-
-                        renderer.as_mut().unwrap().y_rotate = Some(y_diff as f32 / 200.0);
-                    }
-                    prev_x = position.x;
-                    prev_y = position.y;
-                }
-
-                WindowEvent::MouseInput { state, .. } => {
-                    mouse_hold = match state {
-                        winit::event::ElementState::Pressed => true,
-                        winit::event::ElementState::Released => false,
+                        gl_window.surface.swap_buffers(gl_context).unwrap();
                     }
                 }
                 _ => (),
-            },
-            Event::RedrawEventsCleared => {
-                if let Some((gl_context, gl_window)) = &state {
-                    let renderer = renderer.as_mut().unwrap();
-                    renderer.draw();
-                    gl_window.window.request_redraw();
-
-                    gl_window.surface.swap_buffers(gl_context).unwrap();
-                }
             }
-            _ => (),
         }
-    })
+    };
+
+    event_loop.run_return(event_loop_closure);
 }
 
 pub struct GlWindow {
@@ -249,19 +253,17 @@ pub struct Renderer<'a> {
     pub ibo: gl::types::GLuint,
     pub program: Option<gl::types::GLuint>,
     pub gl: gl::Gl,
-    pub draw_function: Option<unsafe fn(&mut Renderer) -> ()>,
     pub scale: f32,
     pub x_rotate: Option<f32>,
     pub y_rotate: Option<f32>,
     pub scene: &'a crate::scene::Scene,
 }
 
-impl Renderer<'_> {
-    pub fn new<D: GlDisplay>(
-        gl_display: &D,
-        draw_function: Option<unsafe fn(&mut Renderer) -> ()>,
-        scene: &'static crate::scene::Scene,
-    ) -> Self {
+impl<'a> Renderer<'a> {
+    pub fn new<D>(gl_display: &D, scene: &'a crate::scene::Scene) -> Self
+    where
+        D: GlDisplay,
+    {
         unsafe {
             let gl = gl::Gl::load_with(|symbol| {
                 let symbol = CString::new(symbol).unwrap();
@@ -285,7 +287,6 @@ impl Renderer<'_> {
                 ibo: std::mem::zeroed(),
                 program: None,
                 gl,
-                draw_function,
                 scale: 0.1,
                 x_rotate: None,
                 y_rotate: None,
@@ -296,42 +297,36 @@ impl Renderer<'_> {
 
     pub fn draw(&mut self) {
         unsafe {
-            if self.draw_function.is_none() {
-                let vertex_shader = create_shader(&self.gl, gl::VERTEX_SHADER, &VERTEX_SHADER);
-                let fragment_shader =
-                    create_shader(&self.gl, gl::FRAGMENT_SHADER, &FRAGMENT_SHADER);
+            let vertex_shader = create_shader(&self.gl, gl::VERTEX_SHADER, &VERTEX_SHADER);
+            let fragment_shader = create_shader(&self.gl, gl::FRAGMENT_SHADER, &FRAGMENT_SHADER);
 
-                self.program = Some(self.gl.CreateProgram());
+            self.program = Some(self.gl.CreateProgram());
 
-                self.gl.AttachShader(self.program.unwrap(), vertex_shader);
+            self.gl.AttachShader(self.program.unwrap(), vertex_shader);
 
-                self.gl.AttachShader(self.program.unwrap(), fragment_shader);
+            self.gl.AttachShader(self.program.unwrap(), fragment_shader);
 
-                self.gl.LinkProgram(self.program.unwrap());
+            self.gl.LinkProgram(self.program.unwrap());
 
-                self.gl.UseProgram(self.program.unwrap());
+            self.gl.UseProgram(self.program.unwrap());
 
-                self.gl.GenVertexArrays(1, &mut self.vao);
-                self.gl.BindVertexArray(self.vao);
+            self.gl.GenVertexArrays(1, &mut self.vao);
+            self.gl.BindVertexArray(self.vao);
 
-                self.gl.GenBuffers(1, &mut self.vbo);
-                self.gl.BindBuffer(gl::ARRAY_BUFFER, self.vbo);
+            self.gl.GenBuffers(1, &mut self.vbo);
+            self.gl.BindBuffer(gl::ARRAY_BUFFER, self.vbo);
 
-                self.gl.GenBuffers(1, &mut self.ibo);
-                self.gl.BindBuffer(gl::ELEMENT_ARRAY_BUFFER, self.ibo);
+            self.gl.GenBuffers(1, &mut self.ibo);
+            self.gl.BindBuffer(gl::ELEMENT_ARRAY_BUFFER, self.ibo);
 
-                self.gl.Enable(gl::DEPTH_TEST);
-                self.gl.DepthFunc(gl::LESS);
+            self.gl.Enable(gl::DEPTH_TEST);
+            self.gl.DepthFunc(gl::LESS);
 
-                self.gl.Clear(gl::COLOR_BUFFER_BIT);
-                self.gl.Clear(gl::DEPTH_BUFFER_BIT);
-                self.gl.ClearColor(0.1, 0.1, 0.1, 1.0);
+            self.gl.Clear(gl::COLOR_BUFFER_BIT);
+            self.gl.Clear(gl::DEPTH_BUFFER_BIT);
+            self.gl.ClearColor(0.1, 0.1, 0.1, 1.0);
 
-                let render_scene = self.scene.clone();
-                render_scene.render(self);
-            } else {
-                self.draw_function.unwrap()(self);
-            }
+            self.scene.render(self);
         }
     }
 
