@@ -117,9 +117,7 @@ impl Cylinder {
         let mut k1 = 0;
         let mut k2 = self.sector_count + 1;
 
-        // indices for the side surface
-        for i in 0..self.sector_count {
-            // 2 triangles per sector
+        for _ in 0..self.sector_count {
             // k1 => k1+1 => k2
             self.indices.push(k1);
             self.indices.push(k1 + 1);
@@ -134,10 +132,7 @@ impl Cylinder {
             k2 += 1;
         }
 
-        // indices for the base surface
-        // NOTE: baseCenterIndex and topCenterIndices are pre-computed during vertex generation
-        //       please see the previous code snippet
-        let mut k = self.base_center_index + 1; // FIXME: THis must be k++
+        let mut k = self.base_center_index + 1;
         for i in 0..self.sector_count {
             if i < self.sector_count - 1 {
                 self.indices.push(self.base_center_index);
@@ -178,6 +173,51 @@ impl Cylinder {
             .flat_map(|(a, b)| a.0.into_iter().chain(a.1).chain(b))
             .copied()
             .collect::<Vec<f32>>();
+    }
+
+    pub fn align_axis(&mut self, centre1: [f32; 3], centre2: [f32; 3]) {
+        let prev_a = [0.0, 0.0, self.height / 2.0];
+        let prev_b = [0.0, 0.0, -self.height / 2.0];
+
+        let translation = [
+            (centre1[0] + centre2[0]) / 2.0,
+            (centre1[1] + centre2[1]) / 2.0,
+            (centre1[2] + centre2[2]) / 2.0,
+        ];
+
+        let prev_vector = [
+            prev_b[0] - prev_a[0],
+            prev_b[1] - prev_a[1],
+            prev_b[2] - prev_a[2],
+        ];
+
+        let new_vector = [
+            centre2[0] - centre1[0],
+            centre2[1] - centre1[1],
+            centre2[2] - centre1[2],
+        ];
+
+        let prev_length =
+            (prev_vector[0].powi(2) + prev_vector[1].powi(2) + prev_vector[2].powi(2)).sqrt();
+        let new_length =
+            (new_vector[0].powi(2) + new_vector[1].powi(2) + new_vector[2].powi(2)).sqrt();
+
+        let scale = new_length / prev_length;
+
+        let new_x = centre1[0];
+        let new_y = centre1[1];
+        let new_z = centre1[2];
+
+        let xz_hyp = (new_y.powi(2) + new_z.powi(2)).sqrt();
+        let theta = (new_y / xz_hyp).asin();
+
+        let yz_hyp = (xz_hyp.powi(2) + new_x.powi(2)).sqrt();
+        let alpha = (new_x / yz_hyp).asin();
+
+        self.scale(1.0, 1.0, scale);
+        self.rotate(theta, 0.0, 0.0);
+        self.rotate(0.0, 0.0, alpha);
+        self.translate(translation[0], translation[1], translation[2]);
     }
 }
 
