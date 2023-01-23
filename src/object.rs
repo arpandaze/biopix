@@ -1,5 +1,4 @@
 use crate::gl;
-use crate::gl::*;
 use crate::opengl;
 
 pub trait Object {
@@ -17,6 +16,71 @@ pub trait Object {
             point[0] += x;
             point[1] += y;
             point[2] += z;
+        });
+
+        self.generate_interlaced_vertices();
+    }
+
+    fn rotate(&mut self, x: f32, y: f32, z: f32) {
+        let vertices = self.vertices_mut();
+
+        vertices.as_mut_slice().chunks_mut(3).for_each(|point| {
+            let x_rotation = [
+                [1.0, 0.0, 0.0],
+                [0.0, x.cos(), -x.sin()],
+                [0.0, x.sin(), x.cos()],
+            ];
+            let x_rotated = [
+                x_rotation[0][0] * point[0]
+                    + x_rotation[0][1] * point[1]
+                    + x_rotation[0][2] * point[2],
+                x_rotation[1][0] * point[0]
+                    + x_rotation[1][1] * point[1]
+                    + x_rotation[1][2] * point[2],
+                x_rotation[2][0] * point[0]
+                    + x_rotation[2][1] * point[1]
+                    + x_rotation[2][2] * point[2],
+            ];
+
+            // Rotate around y-axis
+            let y_rotation = [
+                [y.cos(), 0.0, y.sin()],
+                [0.0, 1.0, 0.0],
+                [-y.sin(), 0.0, y.cos()],
+            ];
+            let y_rotated = [
+                y_rotation[0][0] * x_rotated[0]
+                    + y_rotation[0][1] * x_rotated[1]
+                    + y_rotation[0][2] * x_rotated[2],
+                y_rotation[1][0] * x_rotated[0]
+                    + y_rotation[1][1] * x_rotated[1]
+                    + y_rotation[1][2] * x_rotated[2],
+                y_rotation[2][0] * x_rotated[0]
+                    + y_rotation[2][1] * x_rotated[1]
+                    + y_rotation[2][2] * x_rotated[2],
+            ];
+
+            // Rotate around z-axis
+            let z_rotation = [
+                [z.cos(), -z.sin(), 0.0],
+                [z.sin(), z.cos(), 0.0],
+                [0.0, 0.0, 1.0],
+            ];
+            let z_rotated = [
+                z_rotation[0][0] * y_rotated[0]
+                    + z_rotation[0][1] * y_rotated[1]
+                    + z_rotation[0][2] * y_rotated[2],
+                z_rotation[1][0] * y_rotated[0]
+                    + z_rotation[1][1] * y_rotated[1]
+                    + z_rotation[1][2] * y_rotated[2],
+                z_rotation[2][0] * y_rotated[0]
+                    + z_rotation[2][1] * y_rotated[1]
+                    + z_rotation[2][2] * y_rotated[2],
+            ];
+
+            point[0] = z_rotated[0];
+            point[1] = z_rotated[1];
+            point[2] = z_rotated[2];
         });
 
         self.generate_interlaced_vertices();
