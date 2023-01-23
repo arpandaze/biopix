@@ -7,6 +7,7 @@ pub struct Sphere {
     pub normal_vertices: Vec<f32>,
     pub indices: Vec<u32>,
     pub colors: Vec<f32>,
+    pub centre: [f32; 3],
 
     color: [f32; 3],
     sector_count: u32,
@@ -23,6 +24,7 @@ impl Sphere {
             normal_vertices: vec![],
             indices: vec![],
             colors: vec![],
+            centre: [0.0, 0.0, 0.0],
             color,
             sector_count,
             stack_count,
@@ -135,6 +137,14 @@ impl Object for Sphere {
 
     fn interlaced_vertices(&self) -> &Vec<f32> {
         return &self.interlaced_vertices;
+    }
+
+    fn centre(&self) -> &[f32; 3] {
+        return &self.centre;
+    }
+
+    fn centre_mut(&mut self) -> &mut [f32; 3] {
+        return &mut self.centre;
     }
 
     fn generate_interlaced_vertices(&mut self) {

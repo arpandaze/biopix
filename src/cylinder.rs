@@ -7,6 +7,7 @@ pub struct Cylinder {
     pub normal_vertices: Vec<f32>,
     pub indices: Vec<u32>,
     pub colors: Vec<f32>,
+    pub centre: [f32; 3],
 
     color: [f32; 3],
     sector_count: u32,
@@ -24,6 +25,7 @@ impl Cylinder {
             normal_vertices: vec![],
             indices: vec![],
             colors: vec![],
+            centre: [0.0, 0.0, 0.0],
             base_center_index: 0,
             top_center_index: 0,
             color,
@@ -202,21 +204,23 @@ impl Cylinder {
         let new_length =
             (new_vector[0].powi(2) + new_vector[1].powi(2) + new_vector[2].powi(2)).sqrt();
 
+        let target = [
+            centre1[0] - translation[0],
+            centre1[1] - translation[1],
+            centre1[2] - translation[2],
+        ];
+
+        let target_hyp = (target[1].powi(2) + target[2].powi(2)).sqrt();
+        let target_theta = (target[1] / target_hyp).asin();
+
+        let target_xyz_hyp = (target[0].powi(2) + target_hyp.powi(2)).sqrt();
+        let target_alpha = (target[0] / target_xyz_hyp).asin();
+
         let scale = new_length / prev_length;
 
-        let new_x = centre1[0];
-        let new_y = centre1[1];
-        let new_z = centre1[2];
-
-        let xz_hyp = (new_y.powi(2) + new_z.powi(2)).sqrt();
-        let theta = (new_y / xz_hyp).asin();
-
-        let yz_hyp = (xz_hyp.powi(2) + new_x.powi(2)).sqrt();
-        let alpha = (new_x / yz_hyp).asin();
-
         self.scale(1.0, 1.0, scale);
-        self.rotate(theta, 0.0, 0.0);
-        self.rotate(0.0, 0.0, alpha);
+        self.rotate(0.0, target_alpha, 0.0);
+        self.rotate(-target_theta, 0.0, 0.0);
         self.translate(translation[0], translation[1], translation[2]);
     }
 }
@@ -232,6 +236,14 @@ impl Object for Cylinder {
 
     fn vertices_mut(&mut self) -> &mut Vec<f32> {
         return &mut self.vertices;
+    }
+
+    fn centre(&self) -> &[f32; 3] {
+        return &self.centre;
+    }
+
+    fn centre_mut(&mut self) -> &mut [f32; 3] {
+        return &mut self.centre;
     }
 
     fn colors(&self) -> &Vec<f32> {

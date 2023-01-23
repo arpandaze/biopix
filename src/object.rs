@@ -4,6 +4,8 @@ use crate::opengl;
 pub trait Object {
     fn vertices_mut(&mut self) -> &mut Vec<f32>;
     fn vertices(&self) -> &Vec<f32>;
+    fn centre_mut(&mut self) -> &mut [f32; 3];
+    fn centre(&self) -> &[f32; 3];
     fn colors(&self) -> &Vec<f32>;
     fn normal_vertices(&self) -> &Vec<f32>;
     fn indices(&self) -> &Vec<u32>;
@@ -17,6 +19,12 @@ pub trait Object {
             point[1] += y;
             point[2] += z;
         });
+
+        let centre = self.centre_mut();
+
+        centre[0] += x;
+        centre[1] += y;
+        centre[2] += z;
 
         self.generate_interlaced_vertices();
     }
