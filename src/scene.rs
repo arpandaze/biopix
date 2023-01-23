@@ -32,8 +32,6 @@ impl From<&String> for Scene {
     fn from(filename: &String) -> Self {
         let (mut pdb, _) = pdbtbx::open_pdb(filename, StrictnessLevel::Loose).unwrap();
 
-        let atoms = pdb.atoms().collect::<Vec<&Atom>>();
-
         let scale_matrix = &pdb.scale.clone().unwrap().matrix();
 
         let scale_x = scale_matrix[0][0] as f32;
@@ -43,49 +41,23 @@ impl From<&String> for Scene {
         let mut spheres = Vec::<Sphere>::new();
         let mut centre: [f32; 3] = [0.0, 0.0, 0.0];
 
-        atoms.iter().for_each(|atom| {
+        pdb.atoms().for_each(|atom| {
             if !atom.hetero() {
-                match atom.element() {
-                    Some(Element::O) => {
-                        let mut model = Sphere::new(SPHERE_SECTOR, SPHERE_STACK, 25.0, [1.0, 0.0, 1.0]);
-                        model.scale(scale_x, scale_y, scale_z);
-                        model.translate(atom.x() as f32, atom.y() as f32, atom.z() as f32);
-                        centre = [
-                            centre[0] + atom.x() as f32,
-                            centre[1] + atom.y() as f32,
-                            centre[2] + atom.z() as f32,
-                        ];
-                        spheres.push(model);
-                    }
-                    Some(Element::H) => {
-                        let mut model = Sphere::new(SPHERE_SECTOR, SPHERE_STACK, 25.0, [1.0, 0.0, 0.0]);
-                        model.scale(scale_x, scale_y, scale_z);
-                        model.translate(atom.x() as f32, atom.y() as f32, atom.z() as f32);
-                        centre = [
-                            centre[0] + atom.x() as f32,
-                            centre[1] + atom.y() as f32,
-                            centre[2] + atom.z() as f32,
-                        ];
-                        spheres.push(model);
-                    }
-                    Some(Element::C) => {
-                        let mut model = Sphere::new(SPHERE_SECTOR, SPHERE_STACK, 50.0, [0.0, 1.0, 0.0]);
-                        model.scale(scale_x, scale_y, scale_z);
-                        model.translate(atom.x() as f32, atom.y() as f32, atom.z() as f32);
-                        centre = [
-                            centre[0] + atom.x() as f32,
-                            centre[1] + atom.y() as f32,
-                            centre[2] + atom.z() as f32,
-                        ];
-                        spheres.push(model);
-                    }
-                    Some(Element::N) => {
-                        let mut model = Sphere::new(SPHERE_SECTOR, SPHERE_STACK, 42.3, [0.0, 0.0, 1.0]);
-                        model.scale(scale_x, scale_y, scale_z);
-                        model.translate(atom.x() as f32, atom.y() as f32, atom.z() as f32);
-                        spheres.push(model);
-                    }
-                    _ => {}
+                if let Some(element) = atom.element() {
+                    let mut model = Sphere::new(
+                        SPHERE_SECTOR,
+                        SPHERE_STACK,
+                        element.atomic_radius().covalent_single as f32 * 50.0,
+                        select_color(element),
+                    );
+                    model.scale(scale_x, scale_y, scale_z);
+                    model.translate(atom.x() as f32, atom.y() as f32, atom.z() as f32);
+                    centre = [
+                        centre[0] + atom.x() as f32,
+                        centre[1] + atom.y() as f32,
+                        centre[2] + atom.z() as f32,
+                    ];
+                    spheres.push(model);
                 }
             }
         });
@@ -104,6 +76,16 @@ impl From<&String> for Scene {
             spheres,
             cyliders: vec![],
         };
+    }
+}
+
+fn select_color(element: &Element) -> [f32; 3] {
+    match element {
+        Element::O => [1.0, 0.0, 1.0],
+        Element::C => [0.0, 1.0, 0.0],
+        Element::N => [0.0, 0.0, 1.0],
+        Element::H => [1.0, 0.0, 0.0],
+        _ => [1.0, 1.0, 1.0],
     }
 }
 
